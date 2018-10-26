@@ -144,13 +144,13 @@ client.on('message', message => {
     let args = message.content.split(' ').slice(1).join(' ');
    
   if (message.content === 'ping') {
-      message.channel.send(`<@${message.author.id}> Ping..!`)
+      message.channel.send(`<@%{message.author.id}> Ping..!`)
   }
  
  
   if (message.content.startsWith('%bc')) {
           if (!args[0]) {
-message.channel.send("**$bc <message>**");
+message.channel.send("**%bc <message>**");
 return;
 }
 message.guild.members.forEach(m => {
@@ -260,24 +260,6 @@ const x5bz4 = [
 
 
 
-
-
-
-
-
-
-
-
-
-
-client.on('message', message => {
-    var args = message.content.split(/[ ]+/)
-    if(message.content.includes('discord.gg')){
-		if(!message.channel.guild) return;
-        message.delete()
-    return message.reply(`** No Invite Links للاسف ما تقدر تنشر :) ههههههههههايي 😠 ! **`)
-    }
-});
 
 
 
