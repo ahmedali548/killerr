@@ -64,4 +64,6 @@
   "devDependencies": {},
   "author": "",
   "license": "ISC"
+  npm i fs
+  npm i ms
 }
