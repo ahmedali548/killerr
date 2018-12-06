@@ -1,630 +1,393 @@
-const Discord = require('discord.js');
-const client = new Discord.Client();
-const fs = require("fs"); 
-const Canvas = require("canvas");
-const jimp = require("jimp");
-   let points = {}
-   
-const prefix = '#'
-  client.on('message', message => {
-    if(message.author.bot) return;
-            if (!points[message.author.id]) points[message.author.id] = {
-             points: 0,id: message.author.id
-           };
-              if (message.content.startsWith(prefix + 'فكك')) {
-                if(!message.channel.guild) return message.reply('**هذا الأمر للسيرفرات فقط**').then(m => m.delete(3000));
+const botSettings = require("./config.json");
+const Discord = require("discord.js");
+const axios = require("axios");
+const yt = require("ytdl-core");
+const YouTube = require("simple-youtube-api");
+const fs = require("fs");
+const getYTID = require("get-youtube-id");
+const fetchVideoInfo = require("youtube-info");
+const prefix = botSettings.prefix;
+const ytApiKey = botSettings.ytApiKey;
+const youtube = new YouTube(ytApiKey);
 
-              const type = require('./fkk.json');
-              const item = type[Math.floor(Math.random() * type.length)];
-           let author = message.author;
-              const filter = response => {
-                
-                  return item.answers.some(answer => answer.toLowerCase() === response.content.toLowerCase());
-              };
-              message.channel.send('**لديك 15 ثانيه لتفكيك الكلمه**').then(msg => {
-
- const w = ['./img/w1.png'];//الخافيه
-            let Image = Canvas.Image,
-            canvas = new Canvas(400, 150),
-            ctx = canvas.getContext('2d');
-    
-            fs.readFile(`${w[Math.floor(Math.random() * w.length)]}`, function (err, Background) {
-            if (err) return console.log(err);
-            let BG = Canvas.Image;
-            let ground = new Image;
-            ground.src = Background;
-            ctx.drawImage(ground, 0, 0, 400, 150);
- 
+const bot = new Discord.Client({
+	disableEveryone: true
 });
- let url = message.author.displayAvatarURL.endsWith(".webp") ? message.author.displayAvatarURL.slice(5, -20) + ".png" : message.author.displayAvatarURL;
-               jimp.read(url, (err, ava) => {
-                    if (err) return console.log(err);
-                    ava.getBuffer(jimp.MIME_PNG, (err, buf) => {
-                        if (err) return console.log(err);
-                       
-                      
-                        ctx.font = '15px Arial';
-                              ctx.fontSize = '10px';
-                              ctx.fillStyle = "#FFFFFF";
-                              ctx.textAlign = "center";
-              ctx.fillText(`${item.type} ` , 250, 100);
-              
-               let Avatar = Canvas.Image;
-                              let ava = new Avatar;
-                              ava.src = buf;
-                              ctx.beginPath();
-                              ctx.arc(70, 80, 63, 0, Math.PI*2);
-                                 ctx.closePath();
-                                 ctx.clip();
-                                 ctx.drawImage(ava, 8, 18, 128, 126);   
-message.channel.sendFile(canvas.toBuffer());
- })
-             
-                      message.channel.awaitMessages(filter, { maxMatches: 1, time: 30000, errors: ['time'] })//وقت الاجابة
-                      .then((collected) => {
-                           var embed = new Discord.RichEmbed()
-                            .setDescription(`${collected.first().author} ✅ احسنت لقد تمكنت من تفكيك الكلمه بسرعه`)
-                 message.channel.send(embed);
-                  console.log(`[Typing] ${collected.first().author} typed the word.`);
-                          let won = collected.first().author;
-                          points[won.id].points++;
-                        })
-                        .catch(collected => {
-                       var embed1 = new Discord.RichEmbed()
-                            .setDescription(`:x: لم يتمكن احد من تفكيك الكلمه في الوقت المناسب`)
-                 message.channel.send(embed1);
-                    console.log('[Typing] Error: No one type the word.');
-           
-                  })
-                })
-             
-  })
+
+let commandsList = fs.readFileSync('commands.md', 'utf8');
+
+/* MUSIC VARIABLES */
+let queue = []; // Songs queue
+let songsQueue = []; // Song names stored for queue command
+let isPlaying = false; // Is music playing
+let dispatcher = null;
+let voiceChannel = null;
+let skipRequest = 0; // Stores the number of skip requests 
+let skippers = []; // Usernames of people who voted to skip the song
+let ytResultList = []; // Video names results from yt command
+let ytResultAdd = []; // For storing !add command choice
+/* MUSIC VARIABLES END */
+let re = /^(?:[1-5]|0[1-5]|10)$/; // RegEx for allowing only 1-5 while selecting song from yt results
+let regVol = /^(?:([1][0-9][0-9])|200|([1-9][0-9])|([0-9]))$/; // RegEx for volume control
+let youtubeSearched = false; // If youtube has been searched (for !add command)
+let selectUser; // Selecting user from guild
+
+bot.on("ready", async () => {
+	console.log(`Bot is ready! ${bot.user.username}`);
+
+	/*try {
+		let link = await bot.generateInvite(["ADMINISTRATOR"]);
+		console.log(link);
+	} catch (e) {
+		console.log(e.stack);
+	}*/
+
+});
+
+bot.on("message", async message => {
+	if (message.author.bot) return;
+	if (message.channel.type === "dm") return;
+
+	let messageContent = message.content.split(" ");
+	let command = messageContent[0];
+	let args = messageContent.slice(1);
+
+	if (!command.startsWith(prefix)) return;
+
+	switch (command.slice(1).toLowerCase()) {
+		case "userinfo":
+			if (args.length == 0) { // Displays the message author info if args are empty
+				let embed = new Discord.RichEmbed()
+					.setThumbnail(message.author.avatarURL)
+					.setColor("#8A2BE2")
+					.setDescription(`User info for: **${message.author.username}**`)
+					.addField("Avatar:", `[Link](${message.author.avatarURL})`, true)
+					.addField("Status:", message.author.presence.status, true)
+					.addField("Bot: ", message.author.bot, true)
+					.addField("In game: ", message.author.presence.game ? message.author.presence.game : "Not in game", true)
+					.addField("Tag: ", message.author.tag, true)
+					.addField("Discriminator:", message.author.discriminator, true)
+					.addBlankField()
+					.setFooter(`Profile created at: ${message.author.createdAt}`);
+
+				message.channel.send(embed);
+			} else { // Else displays info of user from args
+				if (message.guild.available) {
+					let selectUser = message.guild.member(message.mentions.users.first() || message.guild.members.get(args[0]));
+					let embed = new Discord.RichEmbed()
+						.setThumbnail(selectUser.user.displayAvatarURL)
+						.setColor("#8A2BE2")
+						.setDescription(`User info for: **${selectUser.user.username}**`)
+						.addField("Avatar:", `[Link](${selectUser.user.displayAvatarURL})`, true)
+						.addField("Status:", selectUser.user.presence.status, true)
+						.addField("Bot: ", selectUser.user.bot, true)
+						.addField("In game: ", selectUser.user.presence.game ? selectUser.user.presence.game : "Not in game", true)
+						.addField("Tag: ", selectUser.user.tag, true)
+						.addField("Discriminator:", selectUser.user.discriminator, true)
+						.addBlankField()
+						.setFooter(`Profile created at: ${selectUser.user.createdAt}`);
+
+					message.channel.send(embed);
+				}
+			}
+			break;
+
+		case "play":
+			if (args.length == 0 && queue.length > 0) {
+				if (!message.member.voiceChannel) {
+					message.reply("you need to be in a voice channel to play music. Please, join one and try again.");
+				} else {
+					isPlaying = true;
+					playMusic(queue[0], message);
+					message.reply(`now playing **${songsQueue[0]}**`);
+				}
+			} else if (args.length == 0 && queue.length == 0) {
+				message.reply("queue is empty now, type !play [song name] or !yt [song name] to play/search new songs!");
+			} else if (queue.length > 0 || isPlaying) {
+				getID(args).then(id => {
+					if (id) {
+						queue.push(id);
+						getYouTubeResultsId(args, 1).then(ytResults => {
+							message.reply(`added to queue **${ytResults[0]}**`);
+							songsQueue.push(ytResults[0]);
+						}).catch(error => console.log(error));
+					} else {
+						message.reply("sorry, couldn't find the song.");
+					}
+				}).catch(error => console.log(error));
+			} else {
+				isPlaying = true;
+				getID(args).then(id => {
+					if (id) {
+						queue.push(id);
+						playMusic(id, message);
+						getYouTubeResultsId(args, 1).then(ytResults => {
+							message.reply(`now playing **${ytResults[0]}**`);
+							songsQueue.push(ytResults[0]);
+						}).catch(error => console.log(error));
+					} else {
+						message.reply("sorry, couldn't find the song.");
+					}
+				}).catch(error => console.log(error));
+			}
+			break;
+
+		case "skip":
+			console.log(queue);
+			if (queue.length === 1) {
+				message.reply("queue is empty now, type !play [song name] or !yt [song name] to play/search new songs!");
+				dispatcher.end();
+				setTimeout(() => voiceChannel.leave(), 1000);
+			} else {
+				if (skippers.indexOf(message.author.id) === -1) {
+					skippers.push(message.author.id);
+					skipRequest++;
+
+					if (skipRequest >= Math.ceil((voiceChannel.members.size - 1) / 2)) {
+						skipSong(message);
+						message.reply("your skip has been added to the list. Skipping!");
+					} else {
+						message.reply(`your skip has been added to the list. You need **${Math.ceil((voiceChannel.members.size - 1) / 2) - skipRequest}** more to skip current song!`);
+					}
+				} else {
+					message.reply("you already voted to skip!");
+				}
+			}
+			break;
+
+		case "queue":
+			if (queue.length === 0) { // if there are no songs in the queue, send message that queue is empty
+				message.reply("queue is empty, type !play or !yt to play/search new songs!");
+			} else if (args.length > 0 && args[0] == 'remove') { // if arguments are provided and first one is remove
+				if (args.length == 2 && args[1] <= queue.length) { // check if there are no more than 2 arguments and that second one is in range of songs number in queue
+					// then remove selected song from the queue
+					message.reply(`**${songsQueue[args[1] - 1]}** has been removed from the queue. Type !queue to see the current queue.`);
+					queue.splice(args[1] - 1, 1);
+					songsQueue.splice(args[1] - 1, 1);
+				} else { // if there are more than 2 arguments and the second one is not in the range of songs number in queue, send message
+					message.reply(`you need to enter valid queued song number (1-${queue.length}).`);
+				}
+			} else if (args.length > 0 && args[0] == 'clear') { // same as remove, only clears queue if clear is first argument
+				if (args.length == 1) {
+					// reseting queue and songsQueue, but leaving current song
+					message.reply("all upcoming songs have been removed from the queue. type !play or !yt to play/search new songs!");
+					queue.splice(1);
+					songsQueue.splice(1);
+				} else {
+					message.reply("you need to type !queue clear without following arguments.");
+				}
+			} else if (args.length > 0 && args[0] == 'shuffle') {
+				let tempA = [songsQueue[0]];
+				let tempB = songsQueue.slice(1);
+				songsQueue = tempA.concat(shuffle(tempB));
+				message.channel.send("Queue has been shuffled. Type !queue to see the new queue!");
+			} else { // if there are songs in the queue and queue commands is without arguments display current queue
+				let format = "```"
+				for (const songName in songsQueue) {
+					if (songsQueue.hasOwnProperty(songName)) {
+						let temp = `${parseInt(songName) + 1}: ${songsQueue[songName]} ${songName == 0 ? "**(Current Song)**" : ""}\n`;
+						if ((format + temp).length <= 2000 - 3) {
+							format += temp;
+						} else {
+							format += "```";
+							message.channel.send(format);
+							format = "```";
+						}
+					}
+				}
+				format += "```";
+				message.channel.send(format);
+			}
+			break;
+
+		case "repeat":
+			if (isPlaying) {
+				queue.splice(1, 0, queue[0]);
+				songsQueue.splice(1, 0, songsQueue[0]);
+				message.reply(`**${songsQueue[0]}** will be played again.`);
+			}
+			break;
+
+		case "stop":
+			dispatcher.end();
+			setTimeout(() => voiceChannel.leave(), 1000);
+			break;
+
+		case "yt":
+			if (args.length == 0) {
+				message.reply("you need to enter search term (!yt [search term]).");
+			} else {
+				message.channel.send("```Searching youtube...```");
+				getYouTubeResultsId(args, 5).then(ytResults => {
+					ytResultAdd = ytResults;
+					let ytEmbed = new Discord.RichEmbed()
+						.setColor("#FF0000")
+						.setAuthor("Youtube search results: ", icon_url = "https://cdn1.iconfinder.com/data/icons/logotypes/32/youtube-512.png")
+						.addField("1:", "```" + ytResults[0] + "```")
+						.addField("2:", "```" + ytResults[1] + "```")
+						.addField("3:", "```" + ytResults[2] + "```")
+						.addField("4:", "```" + ytResults[3] + "```")
+						.addField("5:", "```" + ytResults[4] + "```")
+						.addBlankField()
+						.setFooter("Send !add [result number] to queue the song.");
+					message.channel.send(ytEmbed);
+					youtubeSearched = true;
+				}).catch(err => console.log(err));
+			}
+			break;
+
+		case "add":
+			if (youtubeSearched === true) {
+				if (!re.test(args)) {
+					message.reply("you entered the wrong song number or character. Please only enter 1-5 for song number to be queued.");
+				} else {
+					let choice = ytResultAdd[args - 1];
+					getID(choice).then(id => {
+						if (id) {
+							queue.push(id);
+							getYouTubeResultsId(choice, 1).then(ytResults => {
+								message.reply(`added to queue **${ytResults[0]}**`);
+								songsQueue.push(ytResults[0]);
+							}).catch(error => console.log(error));
+						}
+					}).catch(error => console.log(error));
+					youtubeSearched = false;
+				}
+			} else {
+				message.reply("you need to use !yt [search term] command first to add song from the list to the queue.");
+			}
+			break;
+
+		case "vol":
+			if (args.length == 0 && dispatcher) {
+				message.reply(`current volume is ${dispatcher.volume}. Type !vol [percentage - 0 to 200] to set music volume.`);
+			} else if (args.length > 0 && regVol.test(args) == true && dispatcher) {
+				dispatcher.setVolume(args * 0.01);
+				message.reply(`music volume has been set to ${args}%.`);
+				console.log(dispatcher.volume);
+			} else if (!regVol.test(args) && dispatcher) {
+				message.reply("you need to enter a number in 0-200 range.");
+			} else {
+				message.reply("you can only set music volume if music is playing.");
+			}
+			break;
+
+		case "help":
+			message.channel.send("```cs\n" + commandsList + "\n```");
+			break;
+
+		case "commands":
+			message.channel.send("```cs\n" + commandsList + "\n```");
+			break;
+
+
+	}
+});
+
+/*--------------------------------*/
+/* MUSIC CONTROL FUNCTIONS START */
+/*------------------------------*/
+function playMusic(id, message) {
+	voiceChannel = message.member.voiceChannel;
+
+	voiceChannel.join()
+		.then(connection => {
+			console.log("Connected...");
+			stream = yt(`https://www.youtube.com/watch?v=${id}`, {
+				filter: 'audioonly'
+			})
+
+			skipRequest = 0;
+			skippers = [];
+
+			dispatcher = connection.playStream(stream);
+			dispatcher.setVolume(0.25);
+			dispatcher.on('end', () => {
+				skipRequest = 0;
+				skippers = [];
+				queue.shift();
+				songsQueue.shift();
+				if (queue.length === 0) {
+					console.log("Disconnected...");
+					queue = [];
+					songsQueue = [];
+					isPlaying = false;
+				} else {
+					setTimeout(() => playMusic(queue[0], message), 500);
+				}
+			});
+		})
+		.catch(error => console.log(error));
 }
 
-});
-
-
-
-
-client.on('message', message => {
-	 if(message.author.bot) return;
-  if (!points[message.author.id]) points[message.author.id] = {
-             points: 0,id: message.author.id
-           };if (message.content.startsWith(prefix + 'لغز')) {
-	if(!message.channel.guild) return message.reply('**هذا الأمر للسيرفرات فقط**').then(m => m.delete(3000));
-
-const type = require('./quiz.json');
-const item = type[Math.floor(Math.random() * type.length)];
-const filter = response => {
-    return item.answers.some(answer => answer.toLowerCase() === response.content.toLowerCase());
-};
-message.channel.send('**لديك 15 ثانيه لحل هذه الغز**').then(msg => {
- const w = ['./img/w1.png'];//الخافيه
-            let Image = Canvas.Image,
-            canvas = new Canvas(400, 150),
-            ctx = canvas.getContext('2d');
-    
-            fs.readFile(`${w[Math.floor(Math.random() * w.length)]}`, function (err, Background) {
-            if (err) return console.log(err);
-            let BG = Canvas.Image;
-            let ground = new Image;
-            ground.src = Background;
-            ctx.drawImage(ground, 0, 0, 400, 150);
- 
-});
- let url = message.author.displayAvatarURL.endsWith(".webp") ? message.author.displayAvatarURL.slice(5, -20) + ".png" : message.author.displayAvatarURL;
-               jimp.read(url, (err, ava) => {
-                    if (err) return console.log(err);
-                    ava.getBuffer(jimp.MIME_PNG, (err, buf) => {
-                        if (err) return console.log(err);
-                       
-                      
-                        ctx.font = '15px Arial';
-                              ctx.fontSize = '10px';
-                              ctx.fillStyle = "#FFFFFF";
-                              ctx.textAlign = "center";
-              ctx.fillText(`${item.type} ` , 250, 100);
-              
-               let Avatar = Canvas.Image;
-                              let ava = new Avatar;
-                              ava.src = buf;
-                              ctx.beginPath();
-                              ctx.arc(70, 80, 63, 0, Math.PI*2);
-                                 ctx.closePath();
-                                 ctx.clip();
-                                 ctx.drawImage(ava, 8, 18, 128, 126);   
-message.channel.sendFile(canvas.toBuffer());
- })
-             
-                      message.channel.awaitMessages(filter, { maxMatches: 1, time: 30000, errors: ['time'] })//وقت الاجابة
-                      .then((collected) => {
-                           var embed = new Discord.RichEmbed()
-                            .setDescription(`${collected.first().author} ✅ احسنت لقت تمكنت من حل الغز`)
-                 message.channel.send(embed);
-                  console.log(`[Typing] ${collected.first().author} typed the word.`);
-                          let won = collected.first().author;
-                          points[won.id].points++;
-                        })
-                        .catch(collected => {
-                       var embed1 = new Discord.RichEmbed()
-                            .setDescription(`:x:لم يتمكن احد من حل الغز `)
-                 message.channel.send(embed1);
-                    console.log('[Typing] Error: No one type the word.');
-           
-                  })
-                })
-             
-  })
+async function getID(str) {
+	if (str.indexOf("youtube.com") > -1) {
+		return getYTID(str);
+	} else {
+		let body = await axios(`https://www.googleapis.com/youtube/v3/search?part=id&type=video&q=${encodeURIComponent(str)}&key=${ytApiKey}`);
+		if (body.data.items[0] === undefined) {
+			return null;
+		} else {
+			return body.data.items[0].id.videoId;
+		}
+	}
 }
 
-});
-
-
-client.on('message', message => {
-	 if(message.author.bot) return;
-     if (!points[message.author.id]) points[message.author.id] = {
-             points: 0,id: message.author.id
-           };
-    if (message.content.startsWith(prefix+ 'ركب')) {
-      if(!message.channel.guild) return message.reply('**هذا الأمر للسيرفرات فقط**').then(m => m.delete(3000));
-    
-    const type = require('./rkb.json');
-    const item = type[Math.floor(Math.random() * type.length)];
-    const filter = response => {
-        return item.answers.some(answer => answer.toLowerCase() === response.content.toLowerCase());
-    };
-    message.channel.send('**لديك 15 ثانيه لتركيب الكلمه**').then(msg => {
- const w = ['./img/w1.png'];//الخافيه
-            let Image = Canvas.Image,
-            canvas = new Canvas(400, 150),
-            ctx = canvas.getContext('2d');
-    
-            fs.readFile(`${w[Math.floor(Math.random() * w.length)]}`, function (err, Background) {
-            if (err) return console.log(err);
-            let BG = Canvas.Image;
-            let ground = new Image;
-            ground.src = Background;
-            ctx.drawImage(ground, 0, 0, 400, 150);
- 
-});
- let url = message.author.displayAvatarURL.endsWith(".webp") ? message.author.displayAvatarURL.slice(5, -20) + ".png" : message.author.displayAvatarURL;
-               jimp.read(url, (err, ava) => {
-                    if (err) return console.log(err);
-                    ava.getBuffer(jimp.MIME_PNG, (err, buf) => {
-                        if (err) return console.log(err);
-                       
-                      
-                        ctx.font = '15px Arial';
-                              ctx.fontSize = '10px';
-                              ctx.fillStyle = "#FFFFFF";
-                              ctx.textAlign = "center";
-              ctx.fillText(`${item.type} ` , 250, 100);
-              
-               let Avatar = Canvas.Image;
-                              let ava = new Avatar;
-                              ava.src = buf;
-                              ctx.beginPath();
-                              ctx.arc(70, 80, 63, 0, Math.PI*2);
-                                 ctx.closePath();
-                                 ctx.clip();
-                                 ctx.drawImage(ava, 8, 18, 128, 126);   
-message.channel.sendFile(canvas.toBuffer());
- })
-             
-                      message.channel.awaitMessages(filter, { maxMatches: 1, time: 30000, errors: ['time'] })//وقت الاجابة
-                      .then((collected) => {
-                           var embed = new Discord.RichEmbed()
-                            .setDescription(`${collected.first().author} ✅ احسنت لقد ركبت الكلمة`)
-                 message.channel.send(embed);
-                  console.log(`[Typing] ${collected.first().author} typed the word.`);
-                          let won = collected.first().author;
-                          points[won.id].points++;
-                        })
-                        .catch(collected => {
-                       var embed1 = new Discord.RichEmbed()
-                            .setDescription(`:x: لم يتمكن احد من تركيب الكلمة`)
-                 message.channel.send(embed1);
-                    console.log('[Typing] Error: No one type the word.');
-           
-                  })
-                })
-             
-  })
+function addToQueue(strID) {
+	if (strID.indexOf("youtube.com")) {
+		queue.push(getYTID(strID));
+	} else {
+		queue.push(strID);
+		songsQueue.push(strID);
+	}
 }
 
-});
+function skipSong(message) {
+	dispatcher.end();
+}
+/*------------------------------*/
+/* MUSIC CONTROL FUNCTIONS END */
+/*----------------------------*/
 
-
-
-
-
-
-
-client.on('message', message => {
-	 if(message.author.bot) return;
-       if (!points[message.author.id]) points[message.author.id] = {
-             points: 0,id: message.author.id
-           };
-      if (message.content.startsWith(prefix + 'كتابه')) {
-        if(!message.channel.guild) return message.reply('**هذا الأمر للسيرفرات فقط**').then(m => m.delete(3000));
-      
-      const type = require('./type.json');
-      const item = type[Math.floor(Math.random() * type.length)];
-      const filter = response => {
-          return item.answers.some(answer => answer.toLowerCase() === response.content.toLowerCase());
-      };
-      message.channel.send('** لديك 15 ثانيه لكتابه هذه الكلمه بسرعة**').then(msg => {
-      
- const w = ['./img/w1.png'];//الخافيه
-            let Image = Canvas.Image,
-            canvas = new Canvas(400, 150),
-            ctx = canvas.getContext('2d');
-    
-            fs.readFile(`${w[Math.floor(Math.random() * w.length)]}`, function (err, Background) {
-            if (err) return console.log(err);
-            let BG = Canvas.Image;
-            let ground = new Image;
-            ground.src = Background;
-            ctx.drawImage(ground, 0, 0, 400, 150);
- 
-});
- let url = message.author.displayAvatarURL.endsWith(".webp") ? message.author.displayAvatarURL.slice(5, -20) + ".png" : message.author.displayAvatarURL;
-               jimp.read(url, (err, ava) => {
-                    if (err) return console.log(err);
-                    ava.getBuffer(jimp.MIME_PNG, (err, buf) => {
-                        if (err) return console.log(err);
-                       
-                      
-                        ctx.font = '15px Arial';
-                              ctx.fontSize = '10px';
-                              ctx.fillStyle = "#FFFFFF";
-                              ctx.textAlign = "center";
-              ctx.fillText(`${item.type} ` , 250, 100);
-              
-               let Avatar = Canvas.Image;
-                              let ava = new Avatar;
-                              ava.src = buf;
-                              ctx.beginPath();
-                              ctx.arc(70, 80, 63, 0, Math.PI*2);
-                                 ctx.closePath();
-                                 ctx.clip();
-                                 ctx.drawImage(ava, 8, 18, 128, 126);   
-message.channel.sendFile(canvas.toBuffer());
- })
-             
-                      message.channel.awaitMessages(filter, { maxMatches: 1, time: 30000, errors: ['time'] })//وقت الاجابة
-                      .then((collected) => {
-                           var embed = new Discord.RichEmbed()
-                            .setDescription(`${collected.first().author} ✅ **احسنت لقد تمكنت من كتابه هذه الكلمه بسرعه**`)
-                 message.channel.send(embed);
-                  console.log(`[Typing] ${collected.first().author} typed the word.`);
-                          let won = collected.first().author;
-                          points[won.id].points++;
-                        })
-                        .catch(collected => {
-                       var embed1 = new Discord.RichEmbed()
-                            .setDescription(`:x: **لم يتمكن احد من كتابه هذه الكلمه في الوقت المناسب**`)
-                 message.channel.send(embed1);
-                    console.log('[Typing] Error: No one type the word.');
-           
-                  })
-                })
-             
-  })
+/*----------------------------------*/
+/* YOUTUBE CONTROL FUNCTIONS START */
+/*--------------------------------*/
+async function searchYouTube(str) {
+	let search = await axios(`https://www.googleapis.com/youtube/v3/search?part=id&type=video&q=${encodeURIComponent(str)}&key=${ytApiKey}`);
+	if (search.data.items[0] === undefined) {
+		return null;
+	} else {
+		return search.data.items;
+	}
 }
 
-});
-
-
-
-
- client.on('message', message => {
-	  if(message.author.bot) return;
-      if (!points[message.author.id]) points[message.author.id] = {
-             points: 0,id: message.author.id
-           };
-    if (message.content.startsWith(prefix + 'رياضيات')) {
-      if(!message.channel.guild) return message.reply('**هذا الأمر للسيرفرات فقط**').then(m => m.delete(3000));
-    
-    const type = require('./math.json');
-    const item = type[Math.floor(Math.random() * type.length)];
-    const filter = response => {
-        return item.answers.some(answer => answer.toLowerCase() === response.content.toLowerCase());
-    };
-    message.channel.send('**لديك 15 ثانيه لحل المسئله**').then(msg => {
- const w = ['./img/w1.png'];//الخافيه
-            let Image = Canvas.Image,
-            canvas = new Canvas(400, 150),
-            ctx = canvas.getContext('2d');
-    
-            fs.readFile(`${w[Math.floor(Math.random() * w.length)]}`, function (err, Background) {
-            if (err) return console.log(err);
-            let BG = Canvas.Image;
-            let ground = new Image;
-            ground.src = Background;
-            ctx.drawImage(ground, 0, 0, 400, 150);
- 
-});
- let url = message.author.displayAvatarURL.endsWith(".webp") ? message.author.displayAvatarURL.slice(5, -20) + ".png" : message.author.displayAvatarURL;
-               jimp.read(url, (err, ava) => {
-                    if (err) return console.log(err);
-                    ava.getBuffer(jimp.MIME_PNG, (err, buf) => {
-                        if (err) return console.log(err);
-                       
-                      
-                        ctx.font = '15px Arial';
-                              ctx.fontSize = '10px';
-                              ctx.fillStyle = "#FFFFFF";
-                              ctx.textAlign = "center";
-              ctx.fillText(`${item.type} ` , 250, 100);
-              
-               let Avatar = Canvas.Image;
-                              let ava = new Avatar;
-                              ava.src = buf;
-                              ctx.beginPath();
-                              ctx.arc(70, 80, 63, 0, Math.PI*2);
-                                 ctx.closePath();
-                                 ctx.clip();
-                                 ctx.drawImage(ava, 8, 18, 128, 126);   
-message.channel.sendFile(canvas.toBuffer());
- })
-             
-                       message.channel.awaitMessages(filter,{
-               thing: true,
-               maxMatches : 1,
-                time : 60000,
-                 maxUses: 1,
-                errors : ['time']
-            })//وقت الاجابة
-                      .then((collected) => {
-                           var embed = new Discord.RichEmbed()
-                            .setDescription(`${collected.first().author} ✅ **احسنت لقد تمكنت من أجابه عن معادله بسرعه**`)
-                 message.channel.send(embed);
-                  console.log(`[Typing] ${collected.first().author} typed the word.`);
-                          let won = collected.first().author;
-                          points[won.id].points++;
-                        })
-                        .catch(collected => {
-                       var embed1 = new Discord.RichEmbed()
-                            .setDescription(`:x: **لم يتمكن احد من حل معادله في الوقت المناسب**`)
-                 message.channel.send(embed1);
-                    console.log('[Typing] Error: No one type the word.');
-           
-                  })
-                })
-             
-  })
+async function getYouTubeResultsId(ytResult, numOfResults) {
+	let resultsID = [];
+	await youtube.searchVideos(ytResult, numOfResults)
+		.then(results => {
+			for (const resultId of results) {
+				resultsID.push(resultId.title);
+			}
+		})
+		.catch(err => console.log(err));
+	return resultsID;
 }
+/*--------------------------------*/
+/* YOUTUBE CONTROL FUNCTIONS END */
+/*------------------------------*/
 
-});
-
-
-
-
-
-
-
-
-
-
-
-
-client.on('message', message => {
-      if(message.author.bot) return;
-if (message.content.startsWith(prefix + 'top')) {
-    let _top = 1;
-     let topp = Object.values(points);
- let top = topp.slice(0, 10).map(users => `**\`.${_top++}\` | <@${users.id}> \`XP: ${users.points}\`**`).sort((a, b) => a > b).join('\n');
-    const prefixlor = new Discord.RichEmbed()
-      .setTitle("Leaderboard")
-      .setAuthor(client.user.username, client.user.avatarURL)
-      .setDescription(top,true)
-   
-  	message.channel.sendEmbed(prefixlor)
+/*-----------------------*/
+/* MISC FUNCTIONS START */
+/*---------------------*/
+function shuffle(queue) {
+	for (let i = queue.length - 1; i > 0; i--) {
+		const j = Math.floor(Math.random() * (i + 1));
+		[queue[i], queue[j]] = [queue[j], queue[i]];
+	}
+	return queue;
 }
-  
-});
+/*---------------------*/
+/* MISC FUNCTIONS END */
+/*-------------------*/
 
-client.on('message', message => {
-      if(message.author.bot) return;
-if (message.content.startsWith(prefix + 'نقاطي')) {
-	if(!message.channel.guild) return message.reply('**هذا الأمر للسيرفرات فقط**').then(m => m.delete(3000));
-	let userData = points[message.author.id];
-	let embed = new Discord.RichEmbed()
-    .setAuthor(`${message.author.tag}`, message.author.avatarURL)
-	.setColor('#000000')
-	.setDescription(`نقاطك: \`${userData.points}\``)
-	message.channel.sendEmbed(embed)
-  }
-});
-client.on('message', message => {
-  if(message.author.bot) return;
-if (message.content.startsWith(prefix + 'points')) {
-if(!message.channel.guild) return message.reply('**هذا الأمر للسيرفرات فقط**').then(m => m.delete(3000));
-let userData = points[message.author.id];
-let embed = new Discord.RichEmbed()
-.setAuthor(`${message.author.tag}`, message.author.avatarURL)
-.setColor('#000000')
-.setDescription(`نقاطك: \`${userData.points}\``)
-message.channel.sendEmbed(embed)
-}
-});
-
-
-client.on("message", message => {
- if (message.content === "*مساعدة") {
-        message.react("✅")
-           message.react("📬")
-  const embed = new Discord.RichEmbed() 
-      .setColor("#ffff00")
-     .setDescription(`
-══════════ஜ۩۞۩ஜ════════════  
-     🎮「العاب」🎮
-   🎮*فكك
-   🎮*لغز
-   🎮*كتابه
-   🎮*رياضيات
-   🎮*ركب
-   🎮*xo
-   🎮*نقاطي
-   🎮*top
-══════════ஜ۩۞۩ஜ════════════ 
- `)
- .setFooter(`by :@OrochiX#9177`)
-   message.channel.sendEmbed(embed)
-   
-   }
-   }); 
-   
-
-client.on('message' , message => {
-  if(message.author.bot) return;
-  if(message.content.startsWith(prefix + "xo")) {
- let array_of_mentions = message.mentions.users.array();
-  let symbols = [':o:', ':heavy_multiplication_x:']
-  var grid_message;
- 
-  if (array_of_mentions.length == 1 || array_of_mentions.length == 2) {
-    let random1 = Math.floor(Math.random() * (1 - 0 + 1)) + 0;
-    let random2 = Math.abs(random1 - 1);
-    if (array_of_mentions.length == 1) {
-      random1 = 0;
-      random2 = 0;
-    }
-    var player1_id = message.author.id
-    let player2_id = array_of_mentions[random2].id;
-    var turn_id = player1_id;
-    var symbol = symbols[0];
-    let initial_message = `اللعبة بين اللاعبين التاليين <@${player1_id}> and <@${player2_id}>!`;
-    if (player1_id == player2_id) {
-      initial_message += '\n_(لقد خسرت, العب مع نفسك :joy:)_'
-    }
-    message.channel.send(`Xo ${initial_message}`)
-    .then(console.log("Successful tictactoe introduction"))
-    .catch(console.error);
-    message.channel.send(':one::two::three:' + '\n' +
-                         ':four::five::six:' + '\n' +
-                         ':seven::eight::nine:')
-    .then((new_message) => {
-      grid_message = new_message;
-    })
-    .then(console.log("Successful tictactoe game initialization"))
-    .catch(console.error);
-    message.channel.send('Loading... Please wait for the :ok: reaction.')
-    .then(async (new_message) => {
-      await new_message.react('1⃣');
-      await new_message.react('2⃣');
-      await new_message.react('3⃣');
-      await new_message.react('4⃣');
-      await new_message.react('5⃣');
-      await new_message.react('6⃣');
-      await new_message.react('7⃣');
-      await new_message.react('8⃣');
-      await new_message.react('9⃣');
-      await new_message.react('🆗');
-      await new_message.edit(`It\'s <@${turn_id}>\'s اشتغل! الرمز هو ${symbol}`)
-      .then((new_new_message) => {
-        require('./xo.js')(client, message, new_new_message, player1_id, player2_id, turn_id, symbol, symbols, grid_message);
-      })
-      .then(console.log("Successful tictactoe listeprefix initialization"))
-      .catch(console.error);
-    })
-    .then(console.log("Successful tictactoe react initialization"))
-    .catch(console.error);
-  }
-  else {
-    message.channel.send(`جرب *xo @uesr`)
-    .then(console.log("Successful error reply"))
-    .catch(console.error);
-  }
-}
- });  
-
-client.on("message", function(message) {
-    var prefix = "*";
-   if(message.content.startsWith(prefix + "rps")) {
-    let messageArgs = message.content.split(" ").slice(1).join(" ");
-    let messageRPS = message.content.split(" ").slice(2).join(" ");
-    let arrayRPS = ['**# - Rock**','**# - Paper**','**# - Scissors**'];
-    let result = `${arrayRPS[Math.floor(Math.random() * arrayRPS.length)]}`;
-    var RpsEmbed = new Discord.RichEmbed()
-    .setAuthor(message.author.username)
-    .setThumbnail(message.author.avatarURL)
-    .addField("Rock","🇷",true)
-    .addField("Paper","🇵",true)
-    .addField("Scissors","🇸",true)
-    message.channel.send(RpsEmbed).then(msg => {
-        msg.react(' 🇷')
-        msg.react("🇸")
-        msg.react("🇵")
-.then(() => msg.react('🇷'))
-.then(() =>msg.react('🇸'))
-.then(() => msg.react('🇵'))
-let reaction1Filter = (reaction, user) => reaction.emoji.name === '🇷' && user.id === message.author.id;
-let reaction2Filter = (reaction, user) => reaction.emoji.name === '🇸' && user.id === message.author.id;
-let reaction3Filter = (reaction, user) => reaction.emoji.name === '🇵' && user.id === message.author.id;
-let reaction1 = msg.createReactionCollector(reaction1Filter, { time: 12000 });
-       
-let reaction2 = msg.createReactionCollector(reaction2Filter, { time: 12000 });
-let reaction3 = msg.createReactionCollector(reaction3Filter, { time: 12000 });
-reaction1.on("collect", r => {
-        message.channel.send(result)
-})
-reaction2.on("collect", r => {
-        message.channel.send(result)
-})
-reaction3.on("collect", r => {
-        message.channel.send(result)
-})
- 
-    })
-}
-});
-const devs = ["429972030092476437"]
-
-const adminprefix = "#";
-client.on('message', message => {
-    var argresult = message.content.split(` `).slice(1).join(' ');
-      if (!devs.includes(message.author.id)) return;
-      
-  if (message.content.startsWith(adminprefix + 'ply')) {
-    client.user.setGame(argresult);
-      message.channel.sendMessage(`**:white_check_mark:   ${argresult}**`)
-  } else 
-    if (message.content === (adminprefix + "Percie")) {
-    message.guild.leave();        
-  } else  
-  if (message.content.startsWith(adminprefix + 'wt')) {
-  client.user.setActivity(argresult, {type:'WATCHING'});
-      message.channel.sendMessage(`**:white_check_mark:   ${argresult}**`)
-  } else 
-  if (message.content.startsWith(adminprefix + 'ls')) {
-  client.user.setActivity(argresult , {type:'LISTENING'});
-      message.channel.sendMessage(`**:white_check_mark:   ${argresult}**`)
-  } else     
-    if (message.content.startsWith(adminprefix + 'setname')) {
-  client.user.setUsername(argresult).then
-      message.channel.sendMessage(`**${argresult}** : Done :>`)
-  return message.reply("**You Can't Change Your Name ,Only After Two Hours :>**");
-  } else
-    if (message.content.startsWith(adminprefix + 'setavatar')) {
-  client.user.setAvatar(argresult);
-    message.channel.sendMessage(`**${argresult}** : تم تغير صورة البوت`);
-        } else     
-  if (message.content.startsWith(adminprefix + 'st')) {
-    client.user.setGame(argresult, "https://www.twitch.tv/idk");
-      message.channel.sendMessage(`**:white_check_mark:   ${argresult}**`)
-  }
-    if(message.content === adminprefix + "restart") {
-      if (!devs.includes(message.author.id)) return;
-          message.channel.send(`:warning:️ **Bot restarting by ${message.author.username}**`);
-        console.log("\n\n~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~");
-        console.log(`⚠️ Bot restarting... ⚠️`);
-        console.log("===============================================\n\n");
-        client.destroy();
-        child_process.fork(__dirname + "/bot.js");
-        console.log(`Bot Successfully Restarted`);
-    }
-  
-  });
-client.login(process.env.BOT_TOKEN);
+bot.login(botSettings.token);
