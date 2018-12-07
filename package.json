@@ -1,0 +1,66 @@
+{
+    "name": "Test",
+    "description": "Test",
+    "version": "2.0.0",
+    "main": "bot.js",
+    "scripts": {
+      "start": "node bot.js"
+    },
+    "repository": {
+      "type": "git",
+      "url": "git://github.com/then/fs.git"
+    },
+    "keywords": [
+      "promise",
+      "then",
+      "fs",
+      "core"
+    ],
+    "author": "Nathan Zadoks",
+    "license": "MIT",
+    "bugs": {
+      "url": "https://github.com/then/fs/issues"
+    },
+    "devDependencies": {
+      "bash-color": "0.0.3"
+    },
+    "dependencies": {
+      "canvas": "1.6.10",
+      "dateformat": "3.0.3",
+      "discord.js": "11.1.0",
+      "ffmpeg-binaries": "3.2.2-3",
+      "fs": "0.0.1-security",
+      "get-youtube-id": "^1.0.0",
+      "moment": "2.22.1",
+      "moment-duration-format": "^2.2.2",
+      "ms": "2.1.1",
+      "node-opus": "0.2.7",
+      "pretty-ms": "3.1.0",
+      "request": "^2.81.0",
+      "short-number": "1.0.6",
+      "simple-youtube-api": "5.0.1",
+      "youtube-info": "^1.2.0",
+      "jimp": "0.2.28",
+      "quick.db": "6.3.1",
+      "sqlite": "2.9.2",
+      "child_process": "1.0.2",
+      "random-number": "0.0.9",
+      "goo.gl": "0.1.4",
+      "ytdl-core": "0.20.2",
+      "figlet": "1.2.0",
+      "snekfetch": "4.0.0",
+      "math-expression-evaluator": "1.2.17",
+      "ascii-data-table":"2.1.1",
+      "fs-extra": "6.0.1",
+      "canvas": "1.6.11",
+      "common-tags":"1.7.2",
+      "google-it":"1.1.1",
+      "google-translate-api": "2.3.0",
+      "giphy-api": "1.2.7",
+      "koa-sendfile": "2.0.0",
+      "zalgolize": "1.2.4",
+      "sendfile": "0.1.0",
+      "array-sort": "1.0.0",
+      "table": "4.0.3"
+    }
+  }
